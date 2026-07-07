@@ -29,7 +29,7 @@
 # =====================================================================
 set -Eeuo pipefail
 
-VERSION="1.3.0"
+VERSION="1.3.1"
 
 # Absolute path to this script (needed to spawn install steps as fresh
 # processes where `set -e` is fully honored, and for self-update)
@@ -871,6 +871,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # postgres:18+ changed its default data layout (data now lives in a
+      # major-versioned subdir). Pin PGDATA to the classic path so it matches
+      # our volume mount below — otherwise 18+ ignores the mounted volume
+      # (data not persisted on fresh installs) or refuses to start on an
+      # existing one ("data in unused mount/volume"). Fixed, mount-aligned path.
+      PGDATA: /var/lib/postgresql/data
     ports:
       - "5432:5432"        # external tools (DBeaver, backend) connect here
     volumes:
