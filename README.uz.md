@@ -154,7 +154,18 @@ qachon credentiallarni indamay ustidan yozmaydi.
   `sudo ufw delete allow 5432/tcp && sudo ufw allow from SIZNING_IP to any port 5432`
 - Firewall 5432/6379 ni faqat o'sha servislar haqiqatda o'rnatilgan bo'lsa ochadi.
 - MinIO S3 API va console faqat localhost'ga bog'langan; fayllar nginx orqali
-  (`/files/`) tarqatiladi, console'ga SSH tunnel bilan kiriladi.
+  (`/files/`) tarqatiladi, console'ga SSH tunnel bilan kiriladi:
+  `ssh -L 9001:localhost:9001 root@SERVER_IP` keyin `http://localhost:9001`.
+- **MinIO console'ni ommaga ochish** (tunnel'siz browserdan kirish) —
+  `http://SERVER_IP:9001` va firewall portini ochadi:
+  ```bash
+  sudo MINIO_CONSOLE_PUBLIC=1 vps install minio
+  # localhost'ga qaytarish:
+  sudo MINIO_CONSOLE_PUBLIC=0 vps install minio && sudo ufw delete allow 9001/tcp
+  ```
+  ⚠️ Bu console'ni shifrsiz HTTP orqali beradi — login paroli shifrlanmagan
+  holda ketadi. Kuchli `MINIO_ROOT_PASSWORD` ishlating; jiddiy narsa uchun
+  domen + TLS (`certbot`) afzal. S3 API (9000) baribir localhost'da qoladi.
 - `/root/server-credentials.txt` ni xavfsiz joyga ko'chirib olgach, o'chiring:
   `sudo rm /root/server-credentials.txt` (qayta o'rnatishda yana yaratiladi).
 

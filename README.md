@@ -153,7 +153,19 @@ kept** — the tool never silently overwrites credentials.
   `sudo ufw delete allow 5432/tcp && sudo ufw allow from YOUR_IP to any port 5432`
 - The firewall only opens 5432/6379 if those services are actually installed.
 - MinIO's S3 API and console bind to localhost only; files are served through
-  nginx (`/files/`), and the console is reached via SSH tunnel.
+  nginx (`/files/`), and the console is reached via SSH tunnel:
+  `ssh -L 9001:localhost:9001 root@SERVER_IP` then open `http://localhost:9001`.
+- **Expose the MinIO console publicly** (browser access without a tunnel) —
+  opens `http://SERVER_IP:9001` and the firewall port for it:
+  ```bash
+  sudo MINIO_CONSOLE_PUBLIC=1 vps install minio
+  # revert to localhost-only:
+  sudo MINIO_CONSOLE_PUBLIC=0 vps install minio && sudo ufw delete allow 9001/tcp
+  ```
+  ⚠️ This serves the console over plain HTTP — the login password travels
+  unencrypted. Use a strong `MINIO_ROOT_PASSWORD`, and for anything sensitive
+  prefer a domain + TLS (`certbot`) instead. The S3 API (9000) stays
+  localhost-only either way.
 - After copying `/root/server-credentials.txt` somewhere safe, delete it:
   `sudo rm /root/server-credentials.txt` (re-generate any time by re-running an install).
 
