@@ -41,9 +41,9 @@ sudo vps
 
   ❯ ◉ Tizim va bazaviy toollar      ✓ o'rnatilgan
     ○ Swap (2GB)                    · o'rnatilmagan
-    ○ Node.js 24 LTS                ◐ qisman
+    ○ Node.js                       ◐ qisman
     ◉ Docker + Compose + Swarm      ✓ o'rnatilgan
-    ○ PostgreSQL 18                 · o'rnatilmagan
+    ○ PostgreSQL                    · o'rnatilmagan
     ○ Valkey (Redis)                · o'rnatilmagan
     ○ MinIO (S3 xotira)             · o'rnatilmagan
     ○ Kunlik Postgres backup        · o'rnatilmagan
@@ -59,17 +59,51 @@ sudo vps
 dependencylar avtomatik hal qilinadi (PostgreSQL tanlasangiz, Docker o'zi qo'shiladi).
 Interfeys **O'zbekcha** va **English** tillarida.
 
+### Har bir tool uchun versiya tanlash
+
+Node.js, PostgreSQL, Valkey yoki MinIO o'rnatayotganingizda tool **rasmiy
+versiyalar ro'yxatini** ko'rsatadi (NodeSource / Docker Hub'dan jonli olinadi,
+offline uchun zaxira ro'yxat bilan) va birini tanlash imkonini beradi — yoki
+**Boshqa** ni tanlab istalgan versiyani yozasiz:
+
+```
+  Versiyani tanlang — PostgreSQL
+  rasmiy versiyalar — birini tanlang yoki o'zingiznikini kiriting
+
+  ❯ 18 (hozirgi)
+    17
+    16
+    15
+    14
+    Boshqa (o'zingiz kiriting)…
+
+  [↑/↓] harakat   [enter] OK
+```
+
+Tanlovingiz eslab qolinadi (`/etc/vps-setup/versions`), shuning uchun qayta
+o'rnatishda o'sha versiya saqlanadi. Savol-javobsiz xohlaysizmi? Versiyani env
+o'zgaruvchisi orqali bering:
+
+```bash
+sudo NODE_MAJOR=22 POSTGRES_VERSION=17 VALKEY_VERSION=7.2 vps install all
+```
+
+> ⚠️ **Allaqachon o'rnatilgan** bazaning major versiyasini o'zgartirish mavjud
+> data volume'ni o'qib bo'lmaydigan qilishi mumkin — avval backup oling
+> (`vps info`) yoki yangi volume'dan boshlang. Tool buni qilishdan oldin
+> ogohlantiradi.
+
 ## Nima o'rnatadi
 
 | Servis | Nima beradi |
 |---|---|
 | **Tizim va toollar** | `apt` update/upgrade + git, curl, jq, htop, tmux, fail2ban, ufw |
 | **Swap (2GB)** | swapfile + `vm.swappiness=10`, fstab orqali doimiy |
-| **Node.js 24 LTS** | NodeSource'dan |
+| **Node.js** | NodeSource'dan — **versiya tanlanadi** (default 24 LTS) |
 | **Docker** | Docker CE + Compose v2 + bitta-node Swarm + log rotation |
-| **PostgreSQL 18** | Docker'da, 5432-port, kichik VPS uchun sozlangan |
-| **Valkey (Redis)** | 6379-port, AOF, 256MB LRU kesh |
-| **MinIO** | S3'ga mos fayl xotira, console SSH tunnel orqali, public `uploads` bucket |
+| **PostgreSQL** | Docker'da, 5432-port, kichik VPS uchun sozlangan — **versiya tanlanadi** (default 18) |
+| **Valkey (Redis)** | 6379-port, AOF, 256MB LRU kesh — **versiya tanlanadi** (default 8) |
+| **MinIO** | S3'ga mos fayl xotira, console SSH tunnel orqali, public `uploads` bucket — **versiya tanlanadi** |
 | **Kunlik backup** | `pg_dump \| gzip` → `/opt/backups`, 7 kun saqlanadi |
 | **Nginx** | reverse proxy :80 → app :3000, `/files/` → MinIO, certbot tayyor |
 | **Firewall** | UFW **SSH lockout himoyasi bilan** + fail2ban + avto yangilanishlar |
