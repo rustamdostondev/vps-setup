@@ -29,7 +29,7 @@
 # =====================================================================
 set -Eeuo pipefail
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 
 # Absolute path to this script (needed to spawn install steps as fresh
 # processes where `set -e` is fully honored, and for self-update)
@@ -238,6 +238,13 @@ MSG_en_in_node="run your apps on port 3000 — nginx proxies them to the interne
 MSG_uz_in_node="applaringizni 3000-portda ishga tushiring — nginx ularni tashqariga chiqaradi"
 MSG_en_in_fw="5432/6379 open only when postgres/valkey exist; restrict by IP for extra safety"
 MSG_uz_in_fw="5432/6379 faqat postgres/valkey bo'lsa ochiladi; xavfsizroq bo'lishi uchun IP bilan cheklang"
+# per-service help (vps help <service>)
+MSG_en_h_what="What it is";               MSG_uz_h_what="Bu nima"
+MSG_en_h_needs="Requires";                MSG_uz_h_needs="Talab qiladi"
+MSG_en_h_none_dep="nothing (standalone)"; MSG_uz_h_none_dep="hech narsa (mustaqil)"
+MSG_en_h_install_cmd="Install";           MSG_uz_h_install_cmd="O'rnatish"
+MSG_en_h_dep_note="dependencies are installed automatically"
+MSG_uz_h_dep_note="dependencylar avtomatik o'rnatiladi"
 
 # --- language ---
 MSG_en_choose_lang="Choose your language / Tilni tanlang"
@@ -1839,7 +1846,34 @@ cmd_update() {
   echo "${CBGRN}${G_OK} $(t upd_done) v${newver}${C0}"
 }
 
+# `vps help <service>` — focused help for one service:
+# description, dependencies, install command, and full paths/management.
+cmd_help_service() {
+  local s="$1" st deps
+  init_dirs
+  compute_statuses
+  detect_ips
+  _info_load_env
+  st="$(get_status "$s")"
+  printf '\n  %s%s%s  %s\n\n' "$CB" "$(t "svc_$s")" "$C0" "$(status_glyph "$st")"
+  _ir "$(t h_what)"  "$(t "desc_$s")"
+  deps="$(svc_deps "$s")"; [[ -z "$deps" ]] && deps="$(t h_none_dep)"
+  _ir "$(t h_needs)" "$deps"
+  _ir "$(t h_install_cmd)" "sudo vps install $s   ${CD}($(t h_dep_note))${C0}"
+  # paths & management (same block as `vps info <service>`)
+  printf '\n  %s%s%s\n' "$CB" "$(t info_title)" "$C0"
+  [[ "$st" == "off" ]] && printf '     %s%s%s\n' "$CD" "$(t info_off)" "$C0"
+  "info_$s"
+  echo ""
+}
+
 cmd_help() {
+  # per-service help: `vps help <service>`
+  if [[ $# -gt 0 ]] && is_service "$(lower "$1")"; then
+    cmd_help_service "$(lower "$1")"
+    return 0
+  fi
+
   local svc_lines="" s
   for s in "${SERVICES[@]}"; do
     svc_lines+=$(printf '    %-10s %s' "$s" "$(t "desc_$s")")$'\n'
@@ -1859,6 +1893,7 @@ cmd_help() {
     sudo vps logs                 oxirgi log qatorlari
     sudo vps lang en|uz           interfeys tili
     sudo vps update               o'zini yangilash (GitHub'dan)
+    vps help <servis>             bitta servis haqida batafsil
     vps version | help
 
   ${CB}SERVISLAR${C0}
@@ -1890,6 +1925,7 @@ EOF
     sudo vps logs                 tail the install log
     sudo vps lang en|uz           set interface language
     sudo vps update               self-update (from GitHub)
+    vps help <service>            detailed help for one service
     vps version | help
 
   ${CB}SERVICES${C0}
@@ -1940,7 +1976,7 @@ main() {
     lang)               shift;         cmd_lang "${1:-}" ;;
     update|self-update) STEP="update"; cmd_update ;;
     version|-v|--version) echo "vps-setup v${VERSION}" ;;
-    help|-h|--help)     cmd_help ;;
+    help|-h|--help)     shift; STEP="help"; cmd_help "$@" ;;
     *)
       echo "${CRED}unknown command: $cmd${C0}" >&2
       cmd_help
