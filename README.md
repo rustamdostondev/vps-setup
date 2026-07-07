@@ -196,8 +196,19 @@ kept** — the tool never silently overwrites credentials.
   ```
   ⚠️ This serves the console over plain HTTP — the login password travels
   unencrypted. Use a strong `MINIO_ROOT_PASSWORD`, and for anything sensitive
-  prefer a domain + TLS (`certbot`) instead. The S3 API (9000) stays
-  localhost-only either way.
+  prefer a domain + TLS (`certbot`) instead.
+- **Expose the MinIO S3 API publicly** (so an external app / S3 client can
+  reach `http://SERVER_IP:9000`) — opens 9000 and the firewall port:
+  ```bash
+  sudo MINIO_API_PUBLIC=1 vps install minio
+  # revert to localhost-only:
+  sudo MINIO_API_PUBLIC=0 vps install minio && sudo ufw delete allow 9000/tcp
+  ```
+  If your app runs on the **same** server you don't need this — point it at
+  `localhost:9000` (or `minio:9000` inside Docker). When exposed, S3 clients
+  must use **path-style** access (`forcePathStyle: true`); credentials are
+  signed (not sent in clear) but object data is unencrypted over plain HTTP —
+  prefer a domain + TLS for production.
 - After copying `/root/server-credentials.txt` somewhere safe, delete it:
   `sudo rm /root/server-credentials.txt` (re-generate any time by re-running an install).
 

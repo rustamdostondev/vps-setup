@@ -199,7 +199,19 @@ qachon credentiallarni indamay ustidan yozmaydi.
   ```
   ⚠️ Bu console'ni shifrsiz HTTP orqali beradi — login paroli shifrlanmagan
   holda ketadi. Kuchli `MINIO_ROOT_PASSWORD` ishlating; jiddiy narsa uchun
-  domen + TLS (`certbot`) afzal. S3 API (9000) baribir localhost'da qoladi.
+  domen + TLS (`certbot`) afzal.
+- **MinIO S3 API'ni ommaga ochish** (tashqi app / S3 klient `http://SERVER_IP:9000`
+  ga ulanishi uchun) — 9000 va firewall portini ochadi:
+  ```bash
+  sudo MINIO_API_PUBLIC=1 vps install minio
+  # localhost'ga qaytarish:
+  sudo MINIO_API_PUBLIC=0 vps install minio && sudo ufw delete allow 9000/tcp
+  ```
+  Appingiz **shu serverda** bo'lsa bu kerak emas — `localhost:9000` (yoki
+  Docker ichida `minio:9000`) ishlating. Ochilganda S3 klientlar **path-style**
+  ishlatishi kerak (`forcePathStyle: true`); kalitlar imzolanadi (ochiq ketmaydi)
+  lekin obyekt ma'lumoti shifrsiz HTTP orqali uzatiladi — production uchun
+  domen + TLS afzal.
 - `/root/server-credentials.txt` ni xavfsiz joyga ko'chirib olgach, o'chiring:
   `sudo rm /root/server-credentials.txt` (qayta o'rnatishda yana yaratiladi).
 

@@ -29,7 +29,7 @@
 # =====================================================================
 set -Eeuo pipefail
 
-VERSION="1.3.1"
+VERSION="1.4.0"
 
 # Absolute path to this script (needed to spawn install steps as fresh
 # processes where `set -e` is fully honored, and for self-update)
@@ -302,6 +302,8 @@ MSG_en_w_fw_off="SSH rule not found — firewall NOT enabled (lockout protection
 MSG_uz_w_fw_off="SSH qoidasi topilmadi — firewall YOQILMADI (lockout himoyasi)"
 MSG_en_w_minio_public="MinIO console is now PUBLIC on :9001 over plain HTTP — the password travels unencrypted. Use a strong MINIO_ROOT_PASSWORD; prefer a domain + TLS for anything sensitive."
 MSG_uz_w_minio_public="MinIO console endi :9001 da OCHIQ (shifrsiz HTTP) — parol shifrlanmagan holda ketadi. Kuchli MINIO_ROOT_PASSWORD ishlating; jiddiy narsa uchun domen + TLS afzal."
+MSG_en_w_minio_api_public="MinIO S3 API is now PUBLIC on :9000 over plain HTTP — object data is unencrypted in transit (credentials are signed, not sent in clear). Use strong keys; prefer a domain + TLS for production. S3 clients need path-style access."
+MSG_uz_w_minio_api_public="MinIO S3 API endi :9000 da OCHIQ (shifrsiz HTTP) — obyekt ma'lumoti shifrlanmagan holda uzatiladi (kalitlar imzolanadi, ochiq ketmaydi). Kuchli kalit ishlating; production uchun domen + TLS afzal. S3 klientlar path-style ishlatishi kerak."
 
 # --- update ---
 MSG_en_upd_placeholder="Self-update is not configured yet (repository placeholder). Edit REPO_SLUG in this script or set VPS_SETUP_REPO."
@@ -615,21 +617,29 @@ ensure_env_minio() {
     } >> "$INFRA_DIR/.env"
     ok "MinIO credentials written to .env"
   fi
-  # Console exposure toggle — only acts when MINIO_CONSOLE_PUBLIC is given,
-  # so an ordinary re-install never silently opens or closes the console.
-  #   MINIO_CONSOLE_PUBLIC=1 → http://SERVER_IP:9001 (plain HTTP, no TLS)
-  #   MINIO_CONSOLE_PUBLIC=0 → localhost only (SSH tunnel)
+  # Exposure toggles — only act when the env var is given, so an ordinary
+  # re-install never silently opens or closes a port.
+  #   MINIO_CONSOLE_PUBLIC=1 → console  at http://SERVER_IP:9001
+  #   MINIO_API_PUBLIC=1     → S3 API   at http://SERVER_IP:9000
+  #   ...=0 → back to localhost only
   if [[ -n "${MINIO_CONSOLE_PUBLIC:-}" ]]; then
     local bind="127.0.0.1:"
     [[ "$MINIO_CONSOLE_PUBLIC" == "1" ]] && bind=""
     env_set MINIO_CONSOLE_BIND "$bind"
     if [[ -z "$bind" ]]; then warn "$(t w_minio_public)"; fi
   fi
+  if [[ -n "${MINIO_API_PUBLIC:-}" ]]; then
+    local abind="127.0.0.1:"
+    [[ "$MINIO_API_PUBLIC" == "1" ]] && abind=""
+    env_set MINIO_API_BIND "$abind"
+    if [[ -z "$abind" ]]; then warn "$(t w_minio_api_public)"; fi
+  fi
   return 0
 }
 
-# true when the console is configured to be publicly bound (empty prefix)
+# true when the console / S3 API is configured to be publicly bound (empty prefix)
 minio_console_public() { env_has MINIO_CONSOLE_BIND && [[ -z "$(env_get MINIO_CONSOLE_BIND)" ]]; }
+minio_api_public()     { env_has MINIO_API_BIND && [[ -z "$(env_get MINIO_API_BIND)" ]]; }
 
 # =====================================================================
 # VERSION SELECTION — pick a version per tool at install time.
@@ -848,8 +858,9 @@ ensure_compose() {
   env_has MINIO_ROOT_PASSWORD  || echo "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-$(gen_secret)}" >> "$INFRA_DIR/.env"
   # Console bind prefix: "127.0.0.1:" = localhost only (default, secure);
   # ""(empty) = exposed on all interfaces (http://SERVER_IP:9001).
-  # Toggled by ensure_env_minio via MINIO_CONSOLE_PUBLIC.
+  # Toggled by ensure_env_minio via MINIO_CONSOLE_PUBLIC / MINIO_API_PUBLIC.
   env_has MINIO_CONSOLE_BIND   || echo "MINIO_CONSOLE_BIND=127.0.0.1:" >> "$INFRA_DIR/.env"
+  env_has MINIO_API_BIND       || echo "MINIO_API_BIND=127.0.0.1:" >> "$INFRA_DIR/.env"
 
   # The compose file interpolates *_VERSION for ALL three services, so each key
   # must exist — seed missing ones with the built-in DEFAULT and never touch an
@@ -923,7 +934,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "127.0.0.1:9000:9000"   # S3 API  — localhost only (nginx serves it publicly)
+      - "${MINIO_API_BIND-127.0.0.1:}9000:9000"       # S3 API  — localhost by default; MINIO_API_BIND="" exposes it
       - "${MINIO_CONSOLE_BIND-127.0.0.1:}9001:9001"   # Console — localhost by default; MINIO_CONSOLE_BIND="" exposes it
     volumes:
       - minio_data:/data
@@ -1157,11 +1168,16 @@ install_minio() {
   else
     warn "$(t w_bucket_fail)"
   fi
-  # if the console is set public, open the firewall port and show the URL
+  # if the console / S3 API are set public, open the firewall port + show URL
   if minio_console_public; then
     ufw_allow_if_active 9001 "MinIO console"
     detect_ips
     ok "MinIO console PUBLIC: http://${SERVER_IP}:9001"
+  fi
+  if minio_api_public; then
+    ufw_allow_if_active 9000 "MinIO S3 API"
+    detect_ips
+    ok "MinIO S3 API PUBLIC: http://${SERVER_IP}:9000  (path-style)"
   fi
 }
 
@@ -1275,10 +1291,16 @@ install_firewall() {
     ufw allow 6379/tcp comment 'Valkey' >/dev/null
     ok "6379/tcp opened (valkey present)"
   fi
-  # MinIO console only when it is configured public (MINIO_CONSOLE_PUBLIC=1)
-  if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx minio && minio_console_public; then
-    ufw allow 9001/tcp comment 'MinIO console' >/dev/null
-    ok "9001/tcp opened (MinIO console public)"
+  # MinIO console / S3 API only when configured public (MINIO_*_PUBLIC=1)
+  if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx minio; then
+    if minio_console_public; then
+      ufw allow 9001/tcp comment 'MinIO console' >/dev/null
+      ok "9001/tcp opened (MinIO console public)"
+    fi
+    if minio_api_public; then
+      ufw allow 9000/tcp comment 'MinIO S3 API' >/dev/null
+      ok "9000/tcp opened (MinIO S3 API public)"
+    fi
   fi
   # SAFER variant (if you have a static IP):
   #   ufw delete allow 5432/tcp && ufw allow from YOUR_IP to any port 5432
@@ -1493,12 +1515,20 @@ info_minio() {
   _ir "$(t il_compose)" "$INFRA_DIR/docker-compose.yml"
   _ir "$(t il_env)"     "$INFRA_DIR/.env"
   _ir "$(t il_data)"    "infra_minio_data → /var/lib/docker/volumes/infra_minio_data/_data"
-  if [[ "$DEMO" != "1" ]] && minio_console_public; then
-    _ir "$(t il_ports)"   "9000 (S3, localhost), 9001 (console, ${CYLW}PUBLIC${C0})"
-    _ir "$(t il_console)" "http://${SERVER_IP:-SERVER_IP}:9001   ${CD}(plain HTTP — no TLS)${C0}"
+  local live=0; [[ "$DEMO" != "1" ]] && live=1
+  # S3 API (9000)
+  if [[ $live -eq 1 ]] && minio_api_public; then
+    _ir "$(t il_ports)"    "9000 (S3, ${CYLW}PUBLIC${C0}), 9001 (console)"
+    _ir "S3 endpoint"      "http://${SERVER_IP:-SERVER_IP}:9000   ${CD}(path-style; plain HTTP)${C0}"
   else
-    _ir "$(t il_ports)"   "9000 (S3), 9001 (console) — $(t il_localonly)"
-    _ir "$(t il_console)" "ssh -L 9001:localhost:9001 root@${SERVER_IP:-SERVER_IP}  →  http://localhost:9001"
+    _ir "$(t il_ports)"    "9000 (S3), 9001 (console) — $(t il_localonly)"
+    _ir "S3 endpoint"      "http://localhost:9000 (on server) / http://minio:9000 (in docker)"
+  fi
+  # Console (9001)
+  if [[ $live -eq 1 ]] && minio_console_public; then
+    _ir "$(t il_console)"  "http://${SERVER_IP:-SERVER_IP}:9001   ${CD}(plain HTTP — no TLS)${C0}"
+  else
+    _ir "$(t il_console)"  "ssh -L 9001:localhost:9001 root@${SERVER_IP:-SERVER_IP}  →  http://localhost:9001"
   fi
   _ir "$(t il_public)"  "http://${SERVER_IP:-SERVER_IP}/files/uploads/<file>"
   _ir "$(t il_manage)"  "docker run --rm -it --network infra_default --entrypoint sh minio/mc"
