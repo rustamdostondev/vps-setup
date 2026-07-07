@@ -29,7 +29,7 @@
 # =====================================================================
 set -Eeuo pipefail
 
-VERSION="1.1.1"
+VERSION="1.1.2"
 
 # Absolute path to this script (needed to spawn install steps as fresh
 # processes where `set -e` is fully honored, and for self-update)
@@ -1821,11 +1821,24 @@ cmd_update() {
     die "$(t upd_placeholder)"
   fi
   echo "$(t upd_checking)"
-  local tmp newver
+  local tmp newver sha url api
   tmp=$(mktemp)
+  # GitHub's CDN caches the mutable 'main' ref for up to ~5 min, so a plain
+  # raw/main fetch can serve a stale copy right after a release. Resolve the
+  # latest commit SHA and fetch a COMMIT-PINNED raw URL instead — that content
+  # is immutable and never stale. Fall back to raw/main (with no-cache hints)
+  # if the API is unreachable or rate-limited.
+  api=$(curl -fsSL -H 'Accept: application/vnd.github+json' \
+        "https://api.github.com/repos/${REPO_SLUG}/commits/main" 2>/dev/null || true)
+  sha=$(printf '%s' "$api" | grep -oE '[0-9a-f]{40}' | head -1 || true)
+  if [[ -n "$sha" ]]; then
+    url="https://raw.githubusercontent.com/${REPO_SLUG}/${sha}/vps"
+  else
+    url="$RAW_BASE/vps"
+  fi
   # a corrupted download must never replace a working CLI: marker check,
   # syntax check and a non-empty version are all required
-  if ! curl -fsSL "$RAW_BASE/vps" -o "$tmp" \
+  if ! curl -fsSL -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "$url" -o "$tmp" \
      || ! grep -q "^# VPS-SETUP-CLI" "$tmp" \
      || ! bash -n "$tmp" 2>/dev/null; then
     rm -f "$tmp"
