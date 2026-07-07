@@ -29,7 +29,7 @@
 # =====================================================================
 set -Eeuo pipefail
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 
 # Absolute path to this script (needed to spawn install steps as fresh
 # processes where `set -e` is fully honored, and for self-update)
@@ -98,9 +98,9 @@ t() { local v="MSG_${UI_LANG}_$1"; printf '%s' "${!v-}"; }
 # --- service labels ---
 MSG_en_svc_system="System & base tools";        MSG_uz_svc_system="Tizim va bazaviy toollar"
 MSG_en_svc_swap="Swap (2GB)";                   MSG_uz_svc_swap="Swap (2GB)"
-MSG_en_svc_nodejs="Node.js 24 LTS";             MSG_uz_svc_nodejs="Node.js 24 LTS"
+MSG_en_svc_nodejs="Node.js";                    MSG_uz_svc_nodejs="Node.js"
 MSG_en_svc_docker="Docker + Compose + Swarm";   MSG_uz_svc_docker="Docker + Compose + Swarm"
-MSG_en_svc_postgres="PostgreSQL 18";            MSG_uz_svc_postgres="PostgreSQL 18"
+MSG_en_svc_postgres="PostgreSQL";               MSG_uz_svc_postgres="PostgreSQL"
 MSG_en_svc_valkey="Valkey (Redis)";             MSG_uz_svc_valkey="Valkey (Redis)"
 MSG_en_svc_minio="MinIO (S3 storage)";          MSG_uz_svc_minio="MinIO (S3 xotira)"
 MSG_en_svc_backup="Daily Postgres backup";      MSG_uz_svc_backup="Kunlik Postgres backup"
@@ -113,12 +113,12 @@ MSG_en_desc_system="apt update/upgrade + git, curl, jq, htop, tmux, fail2ban, uf
 MSG_uz_desc_system="apt update/upgrade + git, curl, jq, htop, tmux, fail2ban, ufw"
 MSG_en_desc_swap="2GB swapfile + vm.swappiness=10 (persistent via fstab)"
 MSG_uz_desc_swap="2GB swapfile + vm.swappiness=10 (fstab orqali doimiy)"
-MSG_en_desc_nodejs="Node.js 24 LTS from NodeSource"
-MSG_uz_desc_nodejs="NodeSource orqali Node.js 24 LTS"
+MSG_en_desc_nodejs="Node.js LTS from NodeSource — pick the version at install"
+MSG_uz_desc_nodejs="NodeSource orqali Node.js LTS — o'rnatishda versiyani tanlaysiz"
 MSG_en_desc_docker="Docker CE + Compose v2 + Swarm init + log rotation"
 MSG_uz_desc_docker="Docker CE + Compose v2 + Swarm init + log rotation"
-MSG_en_desc_postgres="PostgreSQL 18 in Docker (port 5432), tuned for small VPS"
-MSG_uz_desc_postgres="Docker'da PostgreSQL 18 (port 5432), kichik VPS uchun sozlangan"
+MSG_en_desc_postgres="PostgreSQL in Docker (port 5432), tuned for small VPS — pick the version"
+MSG_uz_desc_postgres="Docker'da PostgreSQL (port 5432), kichik VPS uchun sozlangan — versiyani tanlang"
 MSG_en_desc_valkey="Redis-compatible cache (port 6379, AOF, 256MB LRU)"
 MSG_uz_desc_valkey="Redis'ga mos kesh (port 6379, AOF, 256MB LRU)"
 MSG_en_desc_minio="S3-compatible storage (localhost:9000/9001) + public 'uploads' bucket"
@@ -245,6 +245,21 @@ MSG_en_h_none_dep="nothing (standalone)"; MSG_uz_h_none_dep="hech narsa (mustaqi
 MSG_en_h_install_cmd="Install";           MSG_uz_h_install_cmd="O'rnatish"
 MSG_en_h_dep_note="dependencies are installed automatically"
 MSG_uz_h_dep_note="dependencylar avtomatik o'rnatiladi"
+# version selection
+MSG_en_ver_title="Choose a version";     MSG_uz_ver_title="Versiyani tanlang"
+MSG_en_ver_hint="official releases — pick one or enter your own"
+MSG_uz_ver_hint="rasmiy versiyalar — birini tanlang yoki o'zingiznikini kiriting"
+MSG_en_ver_move="move";                   MSG_uz_ver_move="harakat"
+MSG_en_ver_custom="Custom (type your own)…"
+MSG_uz_ver_custom="Boshqa (o'zingiz kiriting)…"
+MSG_en_ver_enter="Enter version:";        MSG_uz_ver_enter="Versiyani kiriting:"
+MSG_en_ver_recommended="recommended";     MSG_uz_ver_recommended="tavsiya etiladi"
+MSG_en_ver_current="current";             MSG_uz_ver_current="hozirgi"
+MSG_en_ver_fetching="fetching official versions…"
+MSG_uz_ver_fetching="rasmiy versiyalar olinmoqda…"
+MSG_en_ver_chosen="version";              MSG_uz_ver_chosen="versiya"
+MSG_en_ver_dbwarn="changing an installed database's major version can make the existing data unreadable — back up first (vps info) or use a fresh data volume"
+MSG_uz_ver_dbwarn="o'rnatilgan bazaning major versiyasini o'zgartirish mavjud ma'lumotni o'qib bo'lmaydigan qilishi mumkin — avval backup oling (vps info) yoki yangi data volume ishlating"
 
 # --- language ---
 MSG_en_choose_lang="Choose your language / Tilni tanlang"
@@ -437,7 +452,8 @@ status_system() {
 status_swap() { swapon --show 2>/dev/null | grep -q . && echo ok || echo off; }
 status_nodejs() {
   command -v node >/dev/null 2>&1 || { echo off; return; }
-  [[ "$(node -v 2>/dev/null | cut -d. -f1)" == "v24" ]] && echo ok || echo part
+  # "ok" when the installed major matches the desired one, else "partial"
+  [[ "$(node -v 2>/dev/null | cut -d. -f1 | tr -d v)" == "$(desired_version nodejs)" ]] && echo ok || echo part
 }
 status_docker() {
   command -v docker >/dev/null 2>&1 || { echo off; return; }
@@ -615,6 +631,205 @@ ensure_env_minio() {
 # true when the console is configured to be publicly bound (empty prefix)
 minio_console_public() { env_has MINIO_CONSOLE_BIND && [[ -z "$(env_get MINIO_CONSOLE_BIND)" ]]; }
 
+# =====================================================================
+# VERSION SELECTION — pick a version per tool at install time.
+# Selectable: nodejs, postgres, valkey, minio. Others have no meaningful
+# version to choose. Priority: explicit env var > persisted pick > default.
+# =====================================================================
+VERSIONS_FILE="$CONF_DIR/versions"
+
+version_selectable() { case "$1" in nodejs|postgres|valkey|minio) return 0 ;; *) return 1 ;; esac; }
+
+version_env_var() {
+  case "$1" in
+    nodejs)   echo NODE_MAJOR ;;
+    postgres) echo POSTGRES_VERSION ;;
+    valkey)   echo VALKEY_VERSION ;;
+    minio)    echo MINIO_VERSION ;;
+  esac
+}
+
+default_version() {
+  case "$1" in
+    nodejs) echo 24 ;; postgres) echo 18 ;; valkey) echo 8 ;; minio) echo latest ;;
+  esac
+}
+
+# Fallback lists used when the live fetch is unavailable (offline / rate-limited)
+curated_versions() {
+  case "$1" in
+    nodejs)   echo "24 22 20 18" ;;
+    postgres) echo "18 17 16 15 14 13" ;;
+    valkey)   echo "8 7.2" ;;
+    minio)    echo "latest" ;;
+  esac
+}
+
+# A version string must be a safe image tag / URL fragment. This is the ONLY
+# thing that stands between a user/env value and a `source .env` run as root,
+# so it is enforced everywhere a version is accepted or emitted.
+valid_version() { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; }
+
+# Persisted user choice (portable upsert into the versions file)
+version_get_saved() { grep "^$1=" "$VERSIONS_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true; }
+set_version() {
+  local s="$1" v="$2" tmp
+  valid_version "$v" || return 0        # never persist an unsafe value
+  mkdir -p "$CONF_DIR" 2>/dev/null || true
+  touch "$VERSIONS_FILE"
+  tmp=$(mktemp)
+  grep -v "^${s}=" "$VERSIONS_FILE" > "$tmp" 2>/dev/null || true
+  echo "${s}=${v}" >> "$tmp"
+  mv "$tmp" "$VERSIONS_FILE"
+}
+
+# The effective version to install: env override > saved pick > built-in default.
+# An env value is only honored if it is a SAFE token — otherwise it is ignored
+# here (defence in depth; validate_supplied_versions also fails fast upstream).
+desired_version() {
+  local s="$1" envvar val
+  envvar="$(version_env_var "$s")"
+  if [[ -n "${!envvar:-}" ]] && valid_version "${!envvar}"; then echo "${!envvar}"; return 0; fi
+  val="$(version_get_saved "$s")"
+  if [[ -n "$val" ]]; then echo "$val"; return 0; fi
+  default_version "$s"
+}
+
+# Fail fast on a malformed version env var (mirrors validate_supplied_passwords).
+validate_supplied_versions() {
+  local s var
+  for s in nodejs postgres valkey minio; do
+    var="$(version_env_var "$s")"
+    if [[ -n "${!var:-}" ]] && ! valid_version "${!var}"; then
+      echo "ERROR ${var}: only letters, digits and . _ - are allowed (got: '${!var}')" >&2
+      exit 1
+    fi
+  done
+  return 0
+}
+
+# Fetch the official version list (live, with a short timeout); falls back to
+# the curated list when offline / rate-limited. Returns a space-separated list.
+fetch_versions() {
+  local s="$1" out=""
+  if [[ "$DEMO" == "1" ]]; then curated_versions "$s"; return 0; fi
+  case "$s" in
+    nodejs)
+      out=$(curl -fsSL --max-time 5 https://nodejs.org/dist/index.json 2>/dev/null \
+            | grep -oE '"version":"v[0-9]+' | grep -oE '[0-9]+$' \
+            | awk '!seen[$0]++' | head -12 | tr '\n' ' ' || true) ;;
+    postgres)
+      out=$(curl -fsSL --max-time 5 "https://hub.docker.com/v2/repositories/library/postgres/tags?page_size=100" 2>/dev/null \
+            | grep -oE '"name":"[0-9]+"' | grep -oE '[0-9]+' \
+            | awk '!seen[$0]++' | sort -rn | head -10 | tr '\n' ' ' || true) ;;
+    valkey)
+      out=$(curl -fsSL --max-time 5 "https://hub.docker.com/v2/repositories/valkey/valkey/tags?page_size=100" 2>/dev/null \
+            | grep -oE '"name":"[0-9]+(\.[0-9]+){0,2}"' | grep -oE '[0-9]+(\.[0-9]+){0,2}' \
+            | awk '!seen[$0]++' | head -10 | tr '\n' ' ' || true) ;;
+    minio) out="" ;;   # dated RELEASE.* tags — no clean numeric list; use latest + custom
+  esac
+  # keep only sane tokens; fall back to curated when empty
+  out=$(printf '%s' "$out" | tr ' ' '\n' | grep -E '^[A-Za-z0-9._-]+$' | tr '\n' ' ' || true)
+  [[ -z "${out// /}" ]] && out="$(curated_versions "$s")"
+  printf '%s' "$out"
+}
+
+# Versions chosen this round are STAGED here (parallel arrays, bash-3.2 safe)
+# and only persisted after the user confirms the install — a cancelled or
+# aborted picker must never repin the version. PICKER_DREW records whether any
+# full-screen picker actually painted (so the caller can avoid a needless clear).
+PICK_SVC=() PICK_VER=() PICKER_DREW=0
+reset_pending_versions() { PICK_SVC=() PICK_VER=() PICKER_DREW=0; }
+stage_version() { PICK_SVC+=("$1"); PICK_VER+=("$2"); }
+commit_pending_versions() {
+  local i
+  for i in "${!PICK_SVC[@]}"; do set_version "${PICK_SVC[$i]}" "${PICK_VER[$i]}"; done
+  reset_pending_versions
+}
+# The version to SHOW in the plan: a staged pick if any, else the saved/default
+planned_version() {
+  local s="$1" i
+  for i in "${!PICK_SVC[@]}"; do
+    [[ "${PICK_SVC[$i]}" == "$s" ]] && { echo "${PICK_VER[$i]}"; return 0; }
+  done
+  desired_version "$s"
+}
+
+# Interactive version picker for one service. Stages the choice (does NOT
+# persist). No-op for non-selectable services, when an env override is set,
+# in a non-TTY context, or when the service is already installed (a re-install
+# keeps its version — avoids a surprise re-prompt / accidental DB downgrade).
+pick_version() {
+  version_selectable "$1" || return 0
+  local s="$1" envvar
+  envvar="$(version_env_var "$s")"
+  # explicit env override → stage it (already validated) and skip the prompt
+  if [[ -n "${!envvar:-}" ]]; then stage_version "$s" "${!envvar}"; return 0; fi
+  [[ $IS_TTY -eq 1 ]] || return 0
+  # already installed → keep the current version, don't re-prompt
+  [[ "$(get_status "$s")" == "ok" ]] && return 0
+
+  local current versions=() reordered=() v cur=0 k i n chosen
+  current="$(desired_version "$s")"
+
+  printf '\033[H\033[2J\n  %s%s%s\n' "$CD" "$(t ver_fetching)" "$C0"
+  read -ra versions <<< "$(fetch_versions "$s")"
+  # current version first (pre-selected default), then the rest
+  reordered=("$current")
+  for v in "${versions[@]}"; do [[ "$v" == "$current" ]] || reordered+=("$v"); done
+  versions=("${reordered[@]}")
+  n=${#versions[@]}   # index n == the "Custom" row
+  PICKER_DREW=1
+
+  tput civis 2>/dev/null || true
+  while true; do
+    printf '\033[H\033[2J'
+    printf '\n  %s%s — %s%s\n' "$CB" "$(t ver_title)" "$(t "svc_$s")" "$C0"
+    printf '  %s%s%s\n\n' "$CD" "$(t ver_hint)" "$C0"
+    for i in "${!versions[@]}"; do
+      local tag=""
+      [[ "${versions[$i]}" == "$current" ]] && tag=" ${CD}($(t ver_current))${C0}"
+      [[ "${versions[$i]}" == "$(default_version "$s")" && "${versions[$i]}" != "$current" ]] && tag=" ${CD}($(t ver_recommended))${C0}"
+      if [[ $i -eq $cur ]]; then printf '  %s%s %s%s%s\n' "$CBCYN" "$G_CUR" "${versions[$i]}" "$C0" "$tag"
+      else printf '    %s%s\n' "${versions[$i]}" "$tag"; fi
+    done
+    if [[ $cur -eq $n ]]; then printf '  %s%s %s%s\n' "$CBCYN" "$G_CUR" "$(t ver_custom)" "$C0"
+    else printf '    %s\n' "$(t ver_custom)"; fi
+    printf '\n  %s[↑/↓] %s   [enter] OK%s\n' "$CGRY" "$(t ver_move)" "$C0"
+    k=$(read_key) || k=""
+    case "$k" in
+      $'\e[A'|k) cur=$(( (cur + n) % (n + 1) )) ;;
+      $'\e[B'|j) cur=$(( (cur + 1) % (n + 1) )) ;;
+      "") break ;;
+    esac
+  done
+  tput cnorm 2>/dev/null || true
+
+  if [[ $cur -eq $n ]]; then
+    printf '\033[H\033[2J\n  %s%s%s ' "$CB" "$(t ver_enter)" "$C0"
+    IFS= read -r chosen || chosen=""
+    chosen="$(printf '%s' "$chosen" | tr -d '[:space:]')"
+    [[ -z "$chosen" ]] && chosen="$current"
+  else
+    chosen="${versions[$cur]}"
+  fi
+  # tag-safe validation; on bad input keep the current value
+  valid_version "$chosen" || chosen="$current"
+  stage_version "$s" "$chosen"
+  return 0
+}
+
+# Stage a version for every selectable service in the queue (before install).
+# Nothing is persisted here — commit_pending_versions does that after confirm.
+pick_queue_versions() {
+  reset_pending_versions
+  local s
+  for s in "${RUN_QUEUE[@]}"; do
+    version_selectable "$s" && pick_version "$s"
+  done
+  return 0
+}
+
 # The full infra compose file (single source of truth for all 3 services).
 # Written idempotently; docker compose only (re)creates the service we start.
 ensure_compose() {
@@ -636,11 +851,20 @@ ensure_compose() {
   # Toggled by ensure_env_minio via MINIO_CONSOLE_PUBLIC.
   env_has MINIO_CONSOLE_BIND   || echo "MINIO_CONSOLE_BIND=127.0.0.1:" >> "$INFRA_DIR/.env"
 
+  # The compose file interpolates *_VERSION for ALL three services, so each key
+  # must exist — seed missing ones with the built-in DEFAULT and never touch an
+  # existing value here. The chosen version for the service actually being
+  # installed is applied by its own install_* function (apply_version), so
+  # installing one service can't silently repin another's image tag.
+  env_has POSTGRES_VERSION || echo "POSTGRES_VERSION=$(default_version postgres)" >> "$INFRA_DIR/.env"
+  env_has VALKEY_VERSION   || echo "VALKEY_VERSION=$(default_version valkey)" >> "$INFRA_DIR/.env"
+  env_has MINIO_VERSION    || echo "MINIO_VERSION=$(default_version minio)" >> "$INFRA_DIR/.env"
+
   write_config "$INFRA_DIR/docker-compose.yml" <<'COMPOSE'
 services:
 
   postgres:
-    image: postgres:18
+    image: postgres:${POSTGRES_VERSION:-18}
     container_name: postgres
     restart: unless-stopped
     environment:
@@ -664,7 +888,7 @@ services:
       retries: 10
 
   valkey:
-    image: valkey/valkey:8
+    image: valkey/valkey:${VALKEY_VERSION:-8}
     container_name: valkey
     restart: unless-stopped
     environment:
@@ -686,7 +910,7 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:${MINIO_VERSION:-latest}
     container_name: minio
     restart: unless-stopped
     environment:
@@ -796,12 +1020,13 @@ install_swap() {
 
 install_nodejs() {
   [[ "$DEMO" == "1" ]] && { demo_install nodejs; return; }
-  if command -v node >/dev/null && [[ "$(node -v | cut -d. -f1)" == "v24" ]]; then
-    ok "Node.js 24 already installed: $(node -v)"
+  local major; major="$(desired_version nodejs)"
+  if command -v node >/dev/null && [[ "$(node -v | cut -d. -f1 | tr -d v)" == "$major" ]]; then
+    ok "Node.js ${major} already installed: $(node -v)"
     return 0
   fi
-  echo "==> installing Node.js 24 LTS (NodeSource)"
-  curl -fsSL https://deb.nodesource.com/setup_24.x | bash - >/dev/null
+  echo "==> installing Node.js ${major} (NodeSource)"
+  curl -fsSL "https://deb.nodesource.com/setup_${major}.x" | bash - >/dev/null
   wait_for_apt
   $APT install nodejs
   ok "Node.js $(node -v) installed"
@@ -855,11 +1080,29 @@ EOF
   fi
 }
 
+# Apply the chosen version for ONE infra service into .env (compose reads it).
+# Warns first when this would change the image tag of an already-existing
+# container — a DB major change can make the existing data volume unreadable.
+apply_version() {  # $1 = service (postgres|valkey|minio)
+  local s="$1" var new old
+  var="$(version_env_var "$s")"
+  new="$(desired_version "$s")"
+  old="$(env_get "$var")"
+  if [[ "$s" == "postgres" || "$s" == "valkey" ]] \
+     && docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$s" \
+     && [[ -n "$old" && "$old" != "$new" ]]; then
+    warn "$(t ver_dbwarn)"
+  fi
+  [[ "$old" != "$new" ]] && env_set "$var" "$new"
+  return 0
+}
+
 install_postgres() {
   [[ "$DEMO" == "1" ]] && { demo_install postgres; return; }
-  echo "==> setting up PostgreSQL 18 (Docker)"
+  echo "==> setting up PostgreSQL $(desired_version postgres) (Docker)"
   ensure_env_postgres
   ensure_compose
+  apply_version postgres
   check_port_conflict 5432
   compose_up postgres
   # shellcheck disable=SC1091
@@ -870,9 +1113,10 @@ install_postgres() {
 
 install_valkey() {
   [[ "$DEMO" == "1" ]] && { demo_install valkey; return; }
-  echo "==> setting up Valkey (Docker)"
+  echo "==> setting up Valkey $(desired_version valkey) (Docker)"
   ensure_env_valkey
   ensure_compose
+  apply_version valkey
   check_port_conflict 6379
   compose_up valkey
   # shellcheck disable=SC1091
@@ -885,9 +1129,10 @@ install_valkey() {
 
 install_minio() {
   [[ "$DEMO" == "1" ]] && { demo_install minio; return; }
-  echo "==> setting up MinIO (Docker)"
+  echo "==> setting up MinIO $(desired_version minio) (Docker)"
   ensure_env_minio
   ensure_compose
+  apply_version minio
   compose_up minio
   # shellcheck disable=SC1091
   source "$INFRA_DIR/.env"
@@ -1093,7 +1338,7 @@ gen_creds() {
     if [[ $have_pg -eq 1 ]]; then
       cat <<EOF
 
---- PostgreSQL 18 (Docker) ---
+--- PostgreSQL ${POSTGRES_VERSION:-18} (Docker) ---
 Host:      ${SERVER_IP}   Port: 5432
 User:      ${POSTGRES_USER:-appuser}
 Database:  ${POSTGRES_DB:-appdb}
@@ -1216,6 +1461,7 @@ info_docker() {
   _ir "$(t il_swarm)"  "docker node ls   |   docker swarm join-token worker"
 }
 info_postgres() {
+  _ir "$(t il_version)" "postgres:$(desired_version postgres)"
   _ir "$(t il_compose)" "$INFRA_DIR/docker-compose.yml"
   _ir "$(t il_env)"     "$INFRA_DIR/.env   ${CD}(chmod 600)${C0}"
   _ir "$(t il_data)"    "infra_pg_data → /var/lib/docker/volumes/infra_pg_data/_data"
@@ -1227,6 +1473,7 @@ info_postgres() {
   _ir "$(t il_backups)" "$BACKUP_DIR   ${CD}(vps install backup)${C0}"
 }
 info_valkey() {
+  _ir "$(t il_version)" "valkey/valkey:$(desired_version valkey)"
   _ir "$(t il_compose)" "$INFRA_DIR/docker-compose.yml"
   _ir "$(t il_env)"     "$INFRA_DIR/.env"
   _ir "$(t il_data)"    "infra_valkey_data → /var/lib/docker/volumes/infra_valkey_data/_data"
@@ -1236,6 +1483,7 @@ info_valkey() {
   _ir "$(t il_logs)"    "docker logs -f valkey"
 }
 info_minio() {
+  _ir "$(t il_version)" "minio/minio:$(desired_version minio)"
   _ir "$(t il_compose)" "$INFRA_DIR/docker-compose.yml"
   _ir "$(t il_env)"     "$INFRA_DIR/.env"
   _ir "$(t il_data)"    "infra_minio_data → /var/lib/docker/volumes/infra_minio_data/_data"
@@ -1356,7 +1604,9 @@ print_plan() {
     for n in "${QUEUE_NOTES[@]}"; do
       [[ "$n" == "dep:$s" ]] && note=" ${CD}$(t plan_dep)${C0}"
     done
-    echo "  ${CCYN}${G_CUR}${C0} $(t "svc_$s")$note"
+    local vershow=""
+    version_selectable "$s" && vershow="  ${CCYN}$(t ver_chosen) $(planned_version "$s")${C0}"
+    echo "  ${CCYN}${G_CUR}${C0} $(t "svc_$s")${vershow}$note"
   done
   for n in "${QUEUE_NOTES[@]}"; do
     if [[ "$n" == skip:* ]]; then
@@ -1600,21 +1850,25 @@ menu_install_flow() {
 
   leave_alt
   validate_supplied_passwords
+  validate_supplied_versions
   build_queue "${requested[@]}"
 
   if [[ ${#RUN_QUEUE[@]} -eq 0 ]]; then
     echo ""
     echo "${CGRN}${G_OK} $(t nothing)${C0}"
   else
+    pick_queue_versions          # STAGE a version for each selectable tool
+    [[ $PICKER_DREW -eq 1 ]] && printf '\033[H\033[2J'   # only clear if a picker painted
     print_plan
     printf '%s' "${CB}$(t confirm)${C0}"
     IFS= read -r answer || answer=""
     case "$(lower "$answer")" in
       y|yes|ha)
+        commit_pending_versions   # persist the picks only now that it's confirmed
         run_queue || true
         compute_statuses
         ;;
-      *) echo "$(t cancelled)" ;;
+      *) reset_pending_versions; echo "$(t cancelled)" ;;   # discard the picks
     esac
   fi
 
@@ -1757,6 +2011,7 @@ cmd_install() {
   fi
 
   validate_supplied_passwords
+  validate_supplied_versions
   detect_ips
   compute_statuses
   build_queue "${requested[@]}"
@@ -1766,6 +2021,8 @@ cmd_install() {
     return 0
   fi
 
+  pick_queue_versions          # stage a version for each selectable tool
+  commit_pending_versions      # direct install (no confirm step) → persist now
   print_plan
   local rc=0
   run_queue || rc=1

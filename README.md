@@ -41,9 +41,9 @@ sudo vps
 
   ❯ ◉ System & base tools           ✓ installed
     ○ Swap (2GB)                    · not installed
-    ○ Node.js 24 LTS                ◐ partial
+    ○ Node.js                       ◐ partial
     ◉ Docker + Compose + Swarm      ✓ installed
-    ○ PostgreSQL 18                 · not installed
+    ○ PostgreSQL                    · not installed
     ○ Valkey (Redis)                · not installed
     ○ MinIO (S3 storage)            · not installed
     ○ Daily Postgres backup         · not installed
@@ -59,17 +59,49 @@ Navigate with **↑/↓**, mark services with **space**, hit **enter** — depen
 are resolved automatically (choose PostgreSQL and Docker comes with it).
 Interface available in **English** and **O'zbekcha**.
 
+### Choose a version per tool
+
+When you install Node.js, PostgreSQL, Valkey or MinIO, the tool shows the
+**official release list** (fetched live from NodeSource / Docker Hub, with an
+offline fallback) and lets you pick one — or choose **Custom** to type any
+version you want:
+
+```
+  Choose a version — PostgreSQL
+  official releases — pick one or enter your own
+
+  ❯ 18 (current)
+    17
+    16
+    15
+    14
+    Custom (type your own)…
+
+  [↑/↓] move   [enter] OK
+```
+
+Your choice is remembered (`/etc/vps-setup/versions`), so re-installs keep the
+same version. Prefer non-interactive? Pass the version as an env var:
+
+```bash
+sudo NODE_MAJOR=22 POSTGRES_VERSION=17 VALKEY_VERSION=7.2 vps install all
+```
+
+> ⚠️ Changing an **already-installed** database's major version can make the
+> existing data volume unreadable — back up first (`vps info`) or start from a
+> fresh volume. The tool warns you before doing this.
+
 ## What it installs
 
 | Service | What you get |
 |---|---|
 | **System & base tools** | `apt` update/upgrade + git, curl, jq, htop, tmux, fail2ban, ufw |
 | **Swap (2GB)** | swapfile + `vm.swappiness=10`, persistent via fstab |
-| **Node.js 24 LTS** | from NodeSource |
+| **Node.js** | from NodeSource — **version selectable** (default 24 LTS) |
 | **Docker** | Docker CE + Compose v2 + single-node Swarm + log rotation |
-| **PostgreSQL 18** | in Docker, port 5432, tuned for small VPSes |
-| **Valkey (Redis)** | port 6379, AOF persistence, 256MB LRU cache |
-| **MinIO** | S3-compatible storage, console via SSH tunnel, public `uploads` bucket |
+| **PostgreSQL** | in Docker, port 5432, tuned for small VPSes — **version selectable** (default 18) |
+| **Valkey (Redis)** | port 6379, AOF persistence, 256MB LRU cache — **version selectable** (default 8) |
+| **MinIO** | S3-compatible storage, console via SSH tunnel, public `uploads` bucket — **version selectable** |
 | **Daily backup** | `pg_dump \| gzip` → `/opt/backups`, 7 days retained |
 | **Nginx** | reverse proxy :80 → your app :3000, `/files/` → MinIO, certbot ready |
 | **Firewall** | UFW **with SSH-lockout protection** + fail2ban + unattended-upgrades |
