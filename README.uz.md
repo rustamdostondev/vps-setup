@@ -78,6 +78,30 @@ Interfeys **O'zbekcha** va **English** tillarida.
 Barcha credentiallar (ulanish URL'lari, parollar, CI/CD private key)
 **`/root/server-credentials.txt`** faylga tushadi — istalgan payt `sudo vps creds` bilan ko'ring.
 
+### Serveringizni biling — `vps info`
+
+Har bir o'rnatilgan servis uchun `sudo vps info` **nima qayerda turibdi va uni
+qanday boshqarish** kerakligini ko'rsatadi — compose fayl, `.env`, Docker
+ma'lumot volume'lari, portlar, log buyruqlari, restart buyruqlari,
+backup/restore, SSL va boshqalar. Server ustida ishlayotgan developer uchun
+tayyor shpargalka:
+
+```
+  PostgreSQL 18  ✓ o'rnatilgan
+     Compose fayl:  /opt/infra/docker-compose.yml
+     Maxfiy (.env): /opt/infra/.env   (chmod 600)
+     Ma'lumot (volume): infra_pg_data → /var/lib/docker/volumes/infra_pg_data/_data
+     Port:          5432
+     Ulanish:       docker exec -it postgres psql -U appuser -d appdb
+     Qayta ishga tushirish: cd /opt/infra && docker compose restart postgres
+     Loglar:        docker logs -f postgres
+     Backuplar:     /opt/backups
+```
+
+`sudo vps info <servis>` bitta servisga toraytiradi va u servis hali
+o'rnatilmagan bo'lsa ham ishlaydi (fayllar qayerga tushishini oldindan bilish
+uchun). Menyuda istalgan servis ustida **`i`** tugmasini bosing.
+
 ## Ishlatish
 
 ```bash
@@ -86,6 +110,8 @@ sudo vps install all            # butun stack, savol-javobsiz
 sudo vps install postgres       # bitta servis (+ dependencylari)
 sudo vps install valkey minio   # bir nechtasini birdan
 sudo vps status                 # serverda nima o'rnatilgan
+sudo vps info                   # fayllar, portlar, boshqaruv buyruqlari (hammasi)
+sudo vps info postgres          # bitta servis uchun
 sudo vps creds                  # credentiallarni ko'rish
 sudo vps logs                   # o'rnatish logining oxiri
 sudo vps lang en|uz             # interfeys tili

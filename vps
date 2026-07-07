@@ -29,7 +29,7 @@
 # =====================================================================
 set -Eeuo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 
 # Absolute path to this script (needed to spawn install steps as fresh
 # processes where `set -e` is fully honored, and for self-update)
@@ -141,8 +141,8 @@ MSG_en_ready="ready";         MSG_uz_ready="tayyor"
 # --- menu chrome ---
 MSG_en_hint1="[space] select   [enter] install   [a] all/none   [r] refresh"
 MSG_uz_hint1="[space] tanlash   [enter] o'rnatish   [a] hammasi/hech biri   [r] yangilash"
-MSG_en_hint2="[c] credentials   [l] language   [q] quit"
-MSG_uz_hint2="[c] credentiallar   [l] til   [q] chiqish"
+MSG_en_hint2="[c] credentials   [i] info   [l] language   [q] quit"
+MSG_uz_hint2="[c] credentiallar   [i] info   [l] til   [q] chiqish"
 MSG_en_selected="selected";   MSG_uz_selected="tanlandi"
 MSG_en_demo_badge="DEMO MODE — nothing is really installed"
 MSG_uz_demo_badge="DEMO REJIM — hech narsa haqiqatda o'rnatilmaydi"
@@ -181,6 +181,63 @@ MSG_uz_creds_none="Credentials fayli hali yo'q — avval postgres / valkey / min
 MSG_en_creds_warn="Keep this file safe. To remove it from the server:"
 MSG_uz_creds_warn="Bu faylni xavfsiz saqlang. Serverdan o'chirish uchun:"
 MSG_en_no_log="No log file yet.";         MSG_uz_no_log="Log fayli hali yo'q."
+
+# --- info (paths & management, for developers) ---
+MSG_en_info_title="PATHS & MANAGEMENT";   MSG_uz_info_title="FAYLLAR VA BOSHQARUV"
+MSG_en_info_hint="Paths & management:";   MSG_uz_info_hint="Fayllar va boshqaruv:"
+MSG_en_info_off="not installed yet — the paths below appear once it is installed"
+MSG_uz_info_off="hali o'rnatilmagan — quyidagi fayllar o'rnatgandan keyin paydo bo'ladi"
+MSG_en_info_none="Nothing installed yet. Run:  vps install all"
+MSG_uz_info_none="Hali hech narsa o'rnatilmagan. Ishlating:  vps install all"
+# reusable field labels
+MSG_en_il_tools="Base tools";             MSG_uz_il_tools="Bazaviy toollar"
+MSG_en_il_config="Config";                MSG_uz_il_config="Config"
+MSG_en_il_compose="Compose file";         MSG_uz_il_compose="Compose fayl"
+MSG_en_il_env="Secrets (.env)";           MSG_uz_il_env="Maxfiy (.env)"
+MSG_en_il_data="Data (volume)";           MSG_uz_il_data="Ma'lumot (volume)"
+MSG_en_il_datadir="Data dir";             MSG_uz_il_datadir="Ma'lumot papkasi"
+MSG_en_il_backups="Backups";              MSG_uz_il_backups="Backuplar"
+MSG_en_il_logs="Logs";                    MSG_uz_il_logs="Loglar"
+MSG_en_il_port="Port";                    MSG_uz_il_port="Port"
+MSG_en_il_ports="Ports";                  MSG_uz_il_ports="Portlar"
+MSG_en_il_binary="Binary";                MSG_uz_il_binary="Dastur"
+MSG_en_il_version="Version";              MSG_uz_il_version="Versiya"
+MSG_en_il_status="Status";                MSG_uz_il_status="Holat"
+MSG_en_il_restart="Restart";              MSG_uz_il_restart="Qayta ishga tushirish"
+MSG_en_il_reload="Reload";                MSG_uz_il_reload="Qayta yuklash"
+MSG_en_il_connect="Connect";              MSG_uz_il_connect="Ulanish"
+MSG_en_il_creds="Credentials";            MSG_uz_il_creds="Credentiallar"
+MSG_en_il_edit="Edit config";             MSG_uz_il_edit="Configni tahrirlash"
+MSG_en_il_manage="Manage";                MSG_uz_il_manage="Boshqarish"
+MSG_en_il_console="Console";              MSG_uz_il_console="Console"
+MSG_en_il_public="Public URL";            MSG_uz_il_public="Ommaviy URL"
+MSG_en_il_key="Private key";              MSG_uz_il_key="Maxfiy kalit"
+MSG_en_il_pubkey="Public key";            MSG_uz_il_pubkey="Ochiq kalit"
+MSG_en_il_authkeys="authorized_keys";     MSG_uz_il_authkeys="authorized_keys"
+MSG_en_il_test="Test";                    MSG_uz_il_test="Test"
+MSG_en_il_run_now="Run now";              MSG_uz_il_run_now="Hozir ishga tushirish"
+MSG_en_il_restore="Restore";              MSG_uz_il_restore="Tiklash"
+MSG_en_il_list="List";                    MSG_uz_il_list="Ro'yxat"
+MSG_en_il_retention="Retention";          MSG_uz_il_retention="Saqlash muddati"
+MSG_en_il_routes="Routes";                MSG_uz_il_routes="Yo'nalishlar"
+MSG_en_il_ssl="Get SSL";                  MSG_uz_il_ssl="SSL olish"
+MSG_en_il_swarm="Swarm";                  MSG_uz_il_swarm="Swarm"
+MSG_en_il_autoupd="Auto updates";         MSG_uz_il_autoupd="Avto yangilanish"
+MSG_en_il_fail2ban="fail2ban";            MSG_uz_il_fail2ban="fail2ban"
+MSG_en_il_note="Note";                    MSG_uz_il_note="Eslatma"
+MSG_en_il_usage="Usage";                  MSG_uz_il_usage="Ishlatish"
+MSG_en_il_7days="7 days";                 MSG_uz_il_7days="7 kun"
+MSG_en_il_localonly="localhost only (S3 API, console)"
+MSG_uz_il_localonly="faqat localhost (S3 API, console)"
+MSG_en_il_gh="GitHub → Settings → Secrets → Actions (SSH_PRIVATE_KEY)"
+MSG_uz_il_gh="GitHub → Settings → Secrets → Actions (SSH_PRIVATE_KEY)"
+# longer inline notes (full sentences → localized)
+MSG_en_in_retention="*.sql.gz older than 7 days are deleted automatically"
+MSG_uz_in_retention="7 kundan eski *.sql.gz fayllar avtomatik o'chiriladi"
+MSG_en_in_node="run your apps on port 3000 — nginx proxies them to the internet"
+MSG_uz_in_node="applaringizni 3000-portda ishga tushiring — nginx ularni tashqariga chiqaradi"
+MSG_en_in_fw="5432/6379 open only when postgres/valkey exist; restrict by IP for extra safety"
+MSG_uz_in_fw="5432/6379 faqat postgres/valkey bo'lsa ochiladi; xavfsizroq bo'lishi uchun IP bilan cheklang"
 
 # --- language ---
 MSG_en_choose_lang="Choose your language / Tilni tanlang"
@@ -1061,6 +1118,127 @@ EOF
 }
 
 # =====================================================================
+# INFO — where everything lives + how to manage it (for developers).
+# `vps info` (all installed) or `vps info <service>`; also the [i] key
+# in the menu. Read-only: safe to run any time.
+# =====================================================================
+# field row:  "  Label:  value"   (label cyan, value plain, copy-pasteable)
+_ir() { printf '     %s%s:%s %s\n' "$CCYN" "$1" "$C0" "$2"; }
+
+# live values pulled from .env (fall back to placeholders when absent)
+INFO_PG_USER="<user>" INFO_PG_DB="<db>" INFO_VK="<password>" INFO_MINIO_U="<key>" INFO_MINIO_P="<secret>"
+_info_load_env() {
+  if [[ "$DEMO" == "1" ]]; then
+    INFO_PG_USER="appuser"; INFO_PG_DB="appdb"; INFO_VK="<password>"
+    INFO_MINIO_U="minioadmin"; INFO_MINIO_P="<secret>"; return 0
+  fi
+  [[ -f "$INFRA_DIR/.env" ]] || return 0
+  INFO_PG_USER="$(env_get POSTGRES_USER)";     [[ -z "$INFO_PG_USER" ]] && INFO_PG_USER="<user>"
+  INFO_PG_DB="$(env_get POSTGRES_DB)";         [[ -z "$INFO_PG_DB" ]] && INFO_PG_DB="<db>"
+  INFO_VK="$(env_get REDIS_PASSWORD)";         [[ -z "$INFO_VK" ]] && INFO_VK="<password>"
+  INFO_MINIO_U="$(env_get MINIO_ROOT_USER)";   [[ -z "$INFO_MINIO_U" ]] && INFO_MINIO_U="<key>"
+  INFO_MINIO_P="$(env_get MINIO_ROOT_PASSWORD)"; [[ -z "$INFO_MINIO_P" ]] && INFO_MINIO_P="<secret>"
+  return 0
+}
+
+info_system() {
+  _ir "$(t il_tools)" "git curl wget jq htop tmux openssl (+ ufw fail2ban unattended-upgrades)"
+  _ir "$(t il_logs)"   "$LOG_FILE   ${CD}(vps logs)${C0}"
+  _ir "$(t il_autoupd)" "/etc/apt/apt.conf.d/20auto-upgrades"
+}
+info_swap() {
+  _ir "$(t il_config)"  "/swapfile (2G),  /etc/fstab,  /etc/sysctl.d/99-swap.conf (vm.swappiness=10)"
+  _ir "$(t il_status)"  "swapon --show   |   free -h"
+}
+info_nodejs() {
+  local nbin nver
+  if [[ "$DEMO" == "1" ]]; then nbin="/usr/bin/node"; nver="v24.x"
+  else nbin="$(command -v node 2>/dev/null || echo '-')"; nver="$(node -v 2>/dev/null || echo '-')"; fi
+  _ir "$(t il_binary)"  "$nbin"
+  _ir "$(t il_version)" "$nver   (npm: $(command -v npm 2>/dev/null || echo npm))"
+  _ir "$(t il_note)"    "$(t in_node)"
+}
+info_docker() {
+  _ir "$(t il_config)" "/etc/docker/daemon.json   ${CD}(log rotation: 10m x3)${C0}"
+  _ir "$(t il_status)" "docker ps   |   docker stats"
+  _ir "$(t il_compose)" "$INFRA_DIR/docker-compose.yml   ${CD}(postgres/valkey/minio)${C0}"
+  _ir "$(t il_datadir)" "/var/lib/docker"
+  _ir "$(t il_swarm)"  "docker node ls   |   docker swarm join-token worker"
+}
+info_postgres() {
+  _ir "$(t il_compose)" "$INFRA_DIR/docker-compose.yml"
+  _ir "$(t il_env)"     "$INFRA_DIR/.env   ${CD}(chmod 600)${C0}"
+  _ir "$(t il_data)"    "infra_pg_data → /var/lib/docker/volumes/infra_pg_data/_data"
+  _ir "$(t il_port)"    "5432"
+  _ir "$(t il_creds)"   "vps creds   ${CD}($CREDS_FILE)${C0}"
+  _ir "$(t il_connect)" "docker exec -it postgres psql -U ${INFO_PG_USER} -d ${INFO_PG_DB}"
+  _ir "$(t il_restart)" "cd $INFRA_DIR && docker compose restart postgres"
+  _ir "$(t il_logs)"    "docker logs -f postgres"
+  _ir "$(t il_backups)" "$BACKUP_DIR   ${CD}(vps install backup)${C0}"
+}
+info_valkey() {
+  _ir "$(t il_compose)" "$INFRA_DIR/docker-compose.yml"
+  _ir "$(t il_env)"     "$INFRA_DIR/.env"
+  _ir "$(t il_data)"    "infra_valkey_data → /var/lib/docker/volumes/infra_valkey_data/_data"
+  _ir "$(t il_port)"    "6379   ${CD}(AOF persistence, 256MB LRU)${C0}"
+  _ir "$(t il_connect)" "docker exec -it valkey valkey-cli -a '${INFO_VK}'"
+  _ir "$(t il_restart)" "cd $INFRA_DIR && docker compose restart valkey"
+  _ir "$(t il_logs)"    "docker logs -f valkey"
+}
+info_minio() {
+  _ir "$(t il_compose)" "$INFRA_DIR/docker-compose.yml"
+  _ir "$(t il_env)"     "$INFRA_DIR/.env"
+  _ir "$(t il_data)"    "infra_minio_data → /var/lib/docker/volumes/infra_minio_data/_data"
+  _ir "$(t il_ports)"   "9000 (S3), 9001 (console) — $(t il_localonly)"
+  _ir "$(t il_console)" "ssh -L 9001:localhost:9001 root@${SERVER_IP:-SERVER_IP}  →  http://localhost:9001"
+  _ir "$(t il_public)"  "http://${SERVER_IP:-SERVER_IP}/files/uploads/<file>"
+  _ir "$(t il_manage)"  "docker run --rm -it --network infra_default --entrypoint sh minio/mc"
+  _ir "$(t il_restart)" "cd $INFRA_DIR && docker compose restart minio"
+  _ir "$(t il_logs)"    "docker logs -f minio"
+}
+info_backup() {
+  _ir "$(t il_config)"    "/etc/cron.daily/pg-backup"
+  _ir "$(t il_backups)"   "$BACKUP_DIR"
+  _ir "$(t il_retention)" "$(t il_7days)   ${CD}($(t in_retention))${C0}"
+  _ir "$(t il_run_now)"   "/etc/cron.daily/pg-backup"
+  _ir "$(t il_list)"      "ls -lh $BACKUP_DIR"
+  _ir "$(t il_restore)"   "gunzip -c $BACKUP_DIR/${INFO_PG_DB}_YYYY-MM-DD.sql.gz | docker exec -i postgres psql -U ${INFO_PG_USER} -d ${INFO_PG_DB}"
+}
+info_nginx() {
+  _ir "$(t il_config)" "/etc/nginx/sites-available/app  →  /etc/nginx/sites-enabled/app"
+  _ir "$(t il_routes)" "/ → 127.0.0.1:3000   |   /files/ → MinIO :9000"
+  _ir "$(t il_logs)"   "/var/log/nginx/access.log   /var/log/nginx/error.log"
+  _ir "$(t il_test)"   "nginx -t"
+  _ir "$(t il_reload)" "systemctl reload nginx"
+  _ir "$(t il_ssl)"    "certbot --nginx -d your-domain.com"
+}
+info_firewall() {
+  _ir "$(t il_status)"   "ufw status verbose"
+  _ir "$(t il_config)"   "/etc/ufw/   ${CD}(rules)${C0}"
+  _ir "$(t il_fail2ban)" "fail2ban-client status sshd"
+  _ir "$(t il_autoupd)"  "/etc/apt/apt.conf.d/20auto-upgrades"
+  _ir "$(t il_note)"     "$(t in_fw)"
+}
+info_sshkey() {
+  _ir "$(t il_key)"      "$CICD_KEY"
+  _ir "$(t il_pubkey)"   "${CICD_KEY}.pub"
+  _ir "$(t il_authkeys)" "/root/.ssh/authorized_keys"
+  _ir "$(t il_creds)"    "vps creds   ${CD}(SSH_PRIVATE_KEY block)${C0}"
+  _ir "$(t il_usage)"    "$(t il_gh)"
+}
+
+# Print the info block for one service (header + fields). The paths are a
+# useful reference even before install, so the body is always shown; when
+# the service is off we prepend a note that these paths appear after install.
+print_info() {  # $1 = service
+  local s="$1" st
+  st="$(get_status "$s")"
+  printf '\n  %s%s%s  %s\n' "$CB" "$(t "svc_$s")" "$C0" "$(status_glyph "$st")"
+  [[ "$st" == "off" ]] && printf '     %s%s%s\n' "$CD" "$(t info_off)" "$C0"
+  "info_$s"
+}
+
+# =====================================================================
 # Runner — executes a queue of services with a spinner + live log tail
 # =====================================================================
 CHILD_PID=""
@@ -1214,6 +1392,10 @@ run_queue() {  # runs RUN_QUEUE; returns 0 if all succeeded
       fi
       ;;
   esac
+
+  # pointer to the paths/management reference for what was just installed
+  echo ""
+  echo "${CBCYN}$(t info_hint)${C0} ${CD}vps info${C0}"
 
   if [[ -z "$failed_list" ]]; then
     echo ""
@@ -1405,6 +1587,20 @@ menu_show_creds() {
   enter_alt
 }
 
+# [i] key — paths & management info for the highlighted service
+menu_show_info() {
+  leave_alt
+  detect_ips
+  _info_load_env
+  echo ""
+  echo "  ${CB}$(t info_title)${C0}"
+  print_info "${SERVICES[$CUR]}"
+  echo ""
+  printf '%s' "${CD}$(t press_key)${C0}"
+  IFS= read -rsn1 || true
+  enter_alt
+}
+
 choose_language() {  # interactive 2-option picker; works before main menu too
   local cur=0 k
   [[ "$UI_LANG" == "uz" ]] && cur=1
@@ -1476,6 +1672,7 @@ cmd_menu() {
       "") menu_install_flow; printf '\033[2J' ;;
       r) compute_statuses ;;
       c) menu_show_creds; printf '\033[2J' ;;
+      i) menu_show_info; printf '\033[2J' ;;
       l) choose_language; printf '\033[2J' ;;
       q|$'\e') break ;;
     esac
@@ -1562,6 +1759,39 @@ cmd_logs() {
   fi
 }
 
+# vps info            → all installed services
+# vps info <service>  → one service (installed or not)
+cmd_info() {
+  require_root
+  compute_statuses
+  detect_ips
+  _info_load_env
+  echo ""
+  echo "  ${CB}$(t info_title)${C0}  ${CD}$(os_pretty)${C0}"
+
+  if [[ $# -gt 0 ]]; then
+    local s
+    for s in "$@"; do
+      s="$(lower "$s")"
+      is_service "$s" || die "$(t err_unknown_svc) $s  (services: ${SERVICES[*]})"
+      print_info "$s"
+    done
+    echo ""
+    return 0
+  fi
+
+  # no arg → every installed (or partial) service
+  local s any=0
+  for s in "${SERVICES[@]}"; do
+    if [[ "$(get_status "$s")" != "off" ]]; then
+      print_info "$s"; any=1
+    fi
+  done
+  echo ""
+  [[ $any -eq 0 ]] && echo "  ${CYLW}$(t info_none)${C0}" && echo ""
+  return 0
+}
+
 cmd_lang() {
   local want
   want="$(lower "${1:-}")"
@@ -1624,6 +1854,7 @@ cmd_help() {
     sudo vps install all          hammasini o'rnatish
     sudo vps install <servis>...  tanlangan servislarni o'rnatish
     sudo vps status               nima o'rnatilganini ko'rish
+    sudo vps info [servis]        fayllar, portlar, boshqaruv buyruqlari
     sudo vps creds                credentiallarni ko'rish
     sudo vps logs                 oxirgi log qatorlari
     sudo vps lang en|uz           interfeys tili
@@ -1654,6 +1885,7 @@ EOF
     sudo vps install all          install everything
     sudo vps install <service>... install selected services
     sudo vps status               see what is installed
+    sudo vps info [service]       files, ports & management commands
     sudo vps creds                show generated credentials
     sudo vps logs                 tail the install log
     sudo vps lang en|uz           set interface language
@@ -1702,6 +1934,7 @@ main() {
     # exit 1 without re-triggering the unexpected-error (ERR) trap
     install)            shift;     STEP="install"; cmd_install "$@" || exit 1 ;;
     status)             init_dirs; STEP="status";  cmd_status ;;
+    info)               shift; init_dirs; STEP="info"; cmd_info "$@" ;;
     creds|credentials)  STEP="creds";  cmd_creds ;;
     logs)               STEP="logs";   cmd_logs ;;
     lang)               shift;         cmd_lang "${1:-}" ;;

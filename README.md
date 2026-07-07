@@ -78,6 +78,29 @@ Interface available in **English** and **O'zbekcha**.
 All credentials (connection URLs, passwords, the CI/CD private key) land in
 **`/root/server-credentials.txt`** — view them any time with `sudo vps creds`.
 
+### Know your server — `vps info`
+
+For each installed service, `sudo vps info` shows exactly **where things live and
+how to manage them** — compose file, `.env`, Docker data volumes, ports, log
+commands, restart commands, backup/restore, SSL, and more. It's a cheat-sheet
+for the developer working on the box:
+
+```
+  PostgreSQL 18  ✓ installed
+     Compose file:  /opt/infra/docker-compose.yml
+     Secrets (.env): /opt/infra/.env   (chmod 600)
+     Data (volume): infra_pg_data → /var/lib/docker/volumes/infra_pg_data/_data
+     Port:          5432
+     Connect:       docker exec -it postgres psql -U appuser -d appdb
+     Restart:       cd /opt/infra && docker compose restart postgres
+     Logs:          docker logs -f postgres
+     Backups:       /opt/backups
+```
+
+`sudo vps info <service>` narrows it to one service, and it works even before a
+service is installed (as a reference for where it *will* put things). In the
+menu, press **`i`** on any highlighted service.
+
 ## Usage
 
 ```bash
@@ -86,6 +109,8 @@ sudo vps install all            # full stack, non-interactive
 sudo vps install postgres       # one service (+ its dependencies)
 sudo vps install valkey minio   # several at once
 sudo vps status                 # what is installed on this server
+sudo vps info                   # paths, ports & management commands (all installed)
+sudo vps info postgres          # same, for one service
 sudo vps creds                  # show credentials
 sudo vps logs                   # tail the install log
 sudo vps lang en|uz             # interface language
